@@ -1,0 +1,123 @@
+import numpy as np
+from tabulate import tabulate
+from dataset_generator import DatasetGenerator
+from metrics import PerformanceTracker, calculate_recall_at_k, calculate_mean_distance, calculate_1nn_distance_diff
+
+# Attempt to import the compiled C++ extension. 
+try:
+    import initialization_cpp
+except ImportError:
+    print("Warning: initialization_cpp not found. Please build the C++ module with CMake and pybind11.")
+    initialization_cpp = None
+
+def compute_ground_truth(dataset, queries, k):
+    """Computes exact nearest neighbors for evaluation purposes."""
+    ground_truth = []
+    for q in queries:
+        distances = np.linalg.norm(dataset - q, axis=1)
+        nearest_indices = np.argsort(distances)[:k]
+        ground_truth.append(nearest_indices.tolist())
+    return ground_truth
+
+def run_experiment():
+    print("=== Sprint 0 Experiment Runner ===")
+    
+    # 1. Dataset Generation
+    generator = DatasetGenerator(seed=42)
+    num_samples = 10000
+    num_dimensions = 128
+    num_queries = 100
+    print(f"Generating dataset with {num_samples} points, {num_dimensions} dimensions...")
+    dataset, queries = generator.generate(num_samples, num_dimensions, num_queries)
+    dataset_list = dataset.tolist() 
+    
+    # 2. Ground Truth calculation
+    k_max = 25
+    print("Computing ground truth...")
+    ground_truth = compute_ground_truth(dataset, queries, k=k_max)
+    
+    if initialization_cpp is None:
+        print("Cannot run approaches without initialization_cpp.")
+        return
+
+    tracker = PerformanceTracker()
+    
+    # Define the approaches to test
+    approaches = [
+        ("Random Points (k=100)", initialization_cpp.RandomPointsInit(42), 100),
+        ("Medoid", initialization_cpp.MedoidInit(), 1)
+    ]
+    
+    offline_results = []
+    online_results = []
+    
+    for name, approach, k_search in approaches:
+        print(f"Testing {name}...")
+        
+        # Build phase (offline)
+        tracker.start()
+        approach.build(dataset_list)
+        build_metrics = tracker.stop()
+        
+        # Search phase (online)
+        approach.reset_distance_computations()
+        tracker.start()
+        search_results_indices = []
+        for i in range(num_queries):
+            query_vec = queries[i].tolist()
+            # C++ returns a list of SearchResult objects
+            results = approach.search(query_vec, k_search)
+            search_results_indices.append([r.index for r in results])
+        search_metrics = tracker.stop()
+        
+        # Get average distance computations from C++
+        total_dist_comps = approach.get_distance_computations()
+        avg_dist_comps = total_dist_comps / num_queries
+        
+        # Metrics calculation (averaged over all queries)
+        avg_recall = {1: 0.0, 10: 0.0, 25: 0.0}
+        avg_mean_dist = 0.0
+        avg_1nn_diff = 0.0
+        
+        for i in range(num_queries):
+            rec = calculate_recall_at_k(search_results_indices[i], ground_truth[i], k_values=[1, 10, 25])
+            for k in avg_recall:
+                avg_recall[k] += rec.get(k, 0.0)
+            avg_mean_dist += calculate_mean_distance(search_results_indices[i], queries[i], dataset)
+            avg_1nn_diff += calculate_1nn_distance_diff(search_results_indices[i][0], ground_truth[i][0], queries[i], dataset)
+            
+        # Averaging
+        for k in avg_recall:
+            avg_recall[k] /= num_queries
+        avg_mean_dist /= num_queries
+        avg_1nn_diff /= num_queries
+        
+        # Populate Offline Results
+        offline_results.append({
+            "Approach": name,
+            "Build Time (s)": round(build_metrics['time_s'], 4),
+            "Build Mem (MB)": round(build_metrics['peak_memory_mb'], 4)
+        })
+        
+        # Populate Online Results
+        online_results.append({
+            "Approach": name,
+            "Search Time (ms/q)": round((search_metrics['time_s'] / num_queries) * 1000, 4),
+            "Search Mem (MB)": round(search_metrics['peak_memory_mb'], 4),
+            "Dist Comps": round(avg_dist_comps, 2),
+            "Recall@1": round(avg_recall[1], 4),
+            "Recall@10": round(avg_recall[10], 4),
+            "Recall@25": round(avg_recall[25], 4),
+            "Mean Dist": round(avg_mean_dist, 4),
+            "1-NN Diff": round(avg_1nn_diff, 4)
+        })
+
+    # 3. Print Results Tables
+    print("\n### Offline Performance (Indexing)\n")
+    print(tabulate(offline_results, headers="keys", tablefmt="pretty"))
+
+    print("\n### Online Performance (Querying)\n")
+    print(tabulate(online_results, headers="keys", tablefmt="pretty"))
+
+if __name__ == "__main__":
+    run_experiment()
