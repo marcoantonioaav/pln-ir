@@ -7,7 +7,7 @@ from metrics import PerformanceTracker, calculate_recall_at_k, calculate_mean_di
 try:
     import initialization_cpp
 except ImportError:
-    print("Warning: initialization_cpp not found. Please build the C++ module with CMake and pybind11.")
+    print("Warning: initialization_cpp not found. Please build the C++ module using CMake.")
     initialization_cpp = None
 
 def compute_ground_truth(dataset, queries, k):
@@ -42,22 +42,26 @@ def run_experiment():
 
     tracker = PerformanceTracker()
     
+    k_search = 100
     # Define the approaches to test
     approaches = [
-        ("Random Points (k=100)", initialization_cpp.RandomPointsInit(42), 100),
-        ("Medoid", initialization_cpp.MedoidInit(), 1)
+        ("Random Points", initialization_cpp.RandomPointsInit(42)),
+        ("Medoid", initialization_cpp.MedoidInit()),
+        ("t KD-Trees (t=5)", initialization_cpp.FlannKDTreeInit(5, k_search))
     ]
     
     offline_results = []
     online_results = []
     
-    for name, approach, k_search in approaches:
+    for name, approach in approaches:
         print(f"Testing {name}...")
         
         # Build phase (offline)
         tracker.start()
         approach.build(dataset_list)
-        build_metrics = tracker.stop()
+        build_time = tracker.stop()
+        mem_footprint = approach.get_memory_usage() / (1024 * 1024)
+        index_size = approach.get_index_size() / (1024 * 1024)
         
         # Search phase (online)
         approach.reset_distance_computations()
@@ -68,7 +72,7 @@ def run_experiment():
             # C++ returns a list of SearchResult objects
             results = approach.search(query_vec, k_search)
             search_results_indices.append([r.index for r in results])
-        search_metrics = tracker.stop()
+        search_time = tracker.stop()
         
         # Get average distance computations from C++
         total_dist_comps = approach.get_distance_computations()
@@ -95,29 +99,32 @@ def run_experiment():
         # Populate Offline Results
         offline_results.append({
             "Approach": name,
-            "Build Time (s)": round(build_metrics['time_s'], 4),
-            "Build Mem (MB)": round(build_metrics['peak_memory_mb'], 4)
+            "Build Time (s)": f"{build_time:.4f}",
+            "Memory Footprint (MB)": f"{mem_footprint:.4f}",
+            "Index Size (MB)": f"{index_size:.4f}"
         })
-        
+
         # Populate Online Results
         online_results.append({
             "Approach": name,
-            "Search Time (ms/q)": round((search_metrics['time_s'] / num_queries) * 1000, 4),
-            "Search Mem (MB)": round(search_metrics['peak_memory_mb'], 4),
-            "Dist Comps": round(avg_dist_comps, 2),
-            "Recall@1": round(avg_recall[1], 4),
-            "Recall@10": round(avg_recall[10], 4),
-            "Recall@25": round(avg_recall[25], 4),
-            "Mean Dist": round(avg_mean_dist, 4),
-            "1-NN Diff": round(avg_1nn_diff, 4)
+            "Search Time (ms/q)": f"{(search_time / num_queries) * 1000:.4f}",
+            "Dist Comps": f"{avg_dist_comps:.4f}",
+            "Recall@1": f"{avg_recall[1]:.4f}",
+            "Recall@10": f"{avg_recall[10]:.4f}",
+            "Recall@25": f"{avg_recall[25]:.4f}",
+            "Mean Dist": f"{avg_mean_dist:.4f}",
+            "1-NN Diff": f"{avg_1nn_diff:.4f}"
         })
 
     # 3. Print Results Tables
+    # Note: Using orgtbl for better alignment/formatting support in the terminal.
+    # We align everything to the right except the first column.
+    # disable_numparse=True ensures our manual formatting (4 decimals) is preserved.
     print("\n### Offline Performance (Indexing)\n")
-    print(tabulate(offline_results, headers="keys", tablefmt="pretty"))
+    print(tabulate(offline_results, headers="keys", tablefmt="orgtbl", stralign="right", disable_numparse=True))
 
     print("\n### Online Performance (Querying)\n")
-    print(tabulate(online_results, headers="keys", tablefmt="pretty"))
+    print(tabulate(online_results, headers="keys", tablefmt="orgtbl", stralign="right", disable_numparse=True))
 
 if __name__ == "__main__":
     run_experiment()

@@ -1,6 +1,7 @@
 import numpy as np
 import time
-import tracemalloc
+import psutil
+import os
 from typing import List, Dict
 
 def calculate_recall_at_k(found_indices: List[int], ground_truth_indices: List[int], k_values: List[int] = [1, 10, 25]) -> Dict[int, float]:
@@ -40,20 +41,13 @@ def calculate_1nn_distance_diff(found_1nn_idx: int, gt_1nn_idx: int, query: np.n
     return float(found_dist - gt_dist)
 
 class PerformanceTracker:
-    """Tracks time and memory usage for build and search operations."""
+    """Tracks time for build and search operations."""
     def __init__(self):
         self.start_time = 0.0
-        self.end_time = 0.0
 
     def start(self):
-        tracemalloc.start()
         self.start_time = time.perf_counter()
 
-    def stop(self) -> Dict[str, float]:
-        self.end_time = time.perf_counter()
-        _, peak = tracemalloc.get_traced_memory()
-        tracemalloc.stop()
-        return {
-            'time_s': self.end_time - self.start_time,
-            'peak_memory_mb': peak / (1024 * 1024)
-        }
+    def stop(self) -> float:
+        """Returns elapsed time in seconds."""
+        return time.perf_counter() - self.start_time

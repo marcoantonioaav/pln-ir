@@ -4,6 +4,7 @@
 #include <random>
 #include <utility>
 #include <cmath>
+#include <unordered_set>
 
 struct SearchResult {
     uint32_t index;
@@ -13,6 +14,8 @@ struct SearchResult {
 class InitializationApproach {
 protected:
     mutable size_t distance_computations_ = 0;
+    mutable size_t memory_usage_ = 0;
+    mutable size_t index_size_ = 0;
     std::vector<std::vector<float>> dataset_;
 
     float compute_l2_distance(const std::vector<float>& v1, const std::vector<float>& v2) const {
@@ -34,6 +37,9 @@ public:
     // Search online, returning a sorted list of (index, distance)
     virtual std::vector<SearchResult> search(const std::vector<float>& query, size_t k) = 0;
 
+    virtual size_t get_memory_usage() const = 0;
+    virtual size_t get_index_size() const = 0;
+
     size_t get_distance_computations() const { return distance_computations_; }
     void reset_distance_computations() { distance_computations_ = 0; }
 };
@@ -45,6 +51,8 @@ public:
     RandomPointsInit(uint32_t seed = 42);
     void build(const std::vector<std::vector<float>>& dataset) override;
     std::vector<SearchResult> search(const std::vector<float>& query, size_t k) override;
+    size_t get_memory_usage() const override;
+    size_t get_index_size() const override;
 };
 
 class MedoidInit : public InitializationApproach {
@@ -54,4 +62,27 @@ public:
     MedoidInit();
     void build(const std::vector<std::vector<float>>& dataset) override;
     std::vector<SearchResult> search(const std::vector<float>& query, size_t k) override;
+    size_t get_memory_usage() const override;
+    size_t get_index_size() const override;
+};
+
+// Forward declaration of internal FLANN state to avoid including flann headers here 
+// if we want to keep it clean, but since we are compiling everything together, 
+// we will just use void* or forward declare a struct in the cpp file.
+struct FlannState;
+
+class FlannKDTreeInit : public InitializationApproach {
+private:
+    int num_trees_;
+    int checks_;
+    FlannState* state_;
+
+public:
+    FlannKDTreeInit(int trees = 4, int checks = 32);
+    ~FlannKDTreeInit() override;
+
+    void build(const std::vector<std::vector<float>>& dataset) override;
+    std::vector<SearchResult> search(const std::vector<float>& query, size_t k) override;
+    size_t get_memory_usage() const override;
+    size_t get_index_size() const override;
 };

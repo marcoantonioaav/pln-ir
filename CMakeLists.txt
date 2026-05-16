@@ -15,3 +15,9 @@ pybind11_add_module(initialization_cpp
 )
 
 target_include_directories(initialization_cpp PRIVATE src/cpp/include)
+target_link_libraries(initialization_cpp PRIVATE flann_cpp lz4)
+
+# Set output directory so the module is found automatically by the Python scripts
+set_target_properties(initialization_cpp PROPERTIES 
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/src/python"
+)
