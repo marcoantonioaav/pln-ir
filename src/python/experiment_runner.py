@@ -47,7 +47,11 @@ def run_experiment():
     approaches = [
         ("Random Points", initialization_cpp.RandomPointsInit(42)),
         ("Medoid", initialization_cpp.MedoidInit()),
-        ("t KD-Trees (t=5)", initialization_cpp.FlannKDTreeInit(5, k_search))
+        ("t KD-Trees (t=1)", initialization_cpp.FlannKDTreeInit(1, k_search)),
+        ("t KD-Trees (t=5)", initialization_cpp.FlannKDTreeInit(5, 5*k_search)),
+        ("t K-Means trees (t=1)", initialization_cpp.FlannKMeansInit(1, 32, 11, k_search)),
+        ("t K-Means trees (t=5)", initialization_cpp.FlannKMeansInit(5, 32, 11, k_search)),
+        ("VP-tree", initialization_cpp.VPTreeInit(8, 1.0, 1.0))
     ]
     
     offline_results = []

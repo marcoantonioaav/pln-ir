@@ -31,4 +31,21 @@ PYBIND11_MODULE(initialization_cpp, m) {
         .def(py::init<int, int>(), py::arg("trees") = 4, py::arg("checks") = 32)
         .def("build", &FlannKDTreeInit::build)
         .def("search", &FlannKDTreeInit::search);
+
+    py::class_<FlannKMeansInit, InitializationApproach>(m, "FlannKMeansInit")
+        .def(py::init<int, int, int, int>(), 
+             py::arg("trees") = 1, 
+             py::arg("branching") = 32, 
+             py::arg("iterations") = 11, 
+             py::arg("checks") = 32)
+        .def("build", &FlannKMeansInit::build)
+        .def("search", &FlannKMeansInit::search);
+
+    py::class_<VPTreeInit, InitializationApproach>(m, "VPTreeInit")
+        .def(py::init<int, float, float>(),
+             py::arg("max_leaves_to_visit") = 1000,
+             py::arg("alpha_left") = 1.0f,
+             py::arg("alpha_right") = 1.0f)
+        .def("build", &VPTreeInit::build)
+        .def("search", &VPTreeInit::search);
 }

@@ -86,3 +86,40 @@ public:
     size_t get_memory_usage() const override;
     size_t get_index_size() const override;
 };
+
+class FlannKMeansInit : public InitializationApproach {
+private:
+    int num_trees_;
+    int branching_;
+    int iterations_;
+    int checks_;
+    FlannState* state_;
+
+public:
+    FlannKMeansInit(int trees = 1, int branching = 32, int iterations = 11, int checks = 32);
+    ~FlannKMeansInit() override;
+
+    void build(const std::vector<std::vector<float>>& dataset) override;
+    std::vector<SearchResult> search(const std::vector<float>& query, size_t k) override;
+    size_t get_memory_usage() const override;
+    size_t get_index_size() const override;
+};
+
+struct NmslibState;
+
+class VPTreeInit : public InitializationApproach {
+private:
+    int max_leaves_to_visit_;
+    float alpha_left_;
+    float alpha_right_;
+    NmslibState* state_;
+
+public:
+    VPTreeInit(int max_leaves_to_visit = 1000, float alpha_left = 1.0f, float alpha_right = 1.0f);
+    ~VPTreeInit() override;
+
+    void build(const std::vector<std::vector<float>>& dataset) override;
+    std::vector<SearchResult> search(const std::vector<float>& query, size_t k) override;
+    size_t get_memory_usage() const override;
+    size_t get_index_size() const override;
+};

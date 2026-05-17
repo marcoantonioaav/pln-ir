@@ -13,9 +13,15 @@ pybind11_add_module(initialization_cpp
     src/cpp/initialization.cpp
     src/cpp/bindings.cpp
 )
+# Add NMSLIB
+set(WITHOUT_TESTS ON)
+add_subdirectory(external/nmslib/similarity_search)
 
-target_include_directories(initialization_cpp PRIVATE src/cpp/include)
-target_link_libraries(initialization_cpp PRIVATE flann_cpp lz4)
+target_include_directories(initialization_cpp PRIVATE 
+    src/cpp/include 
+    external/nmslib/similarity_search/include
+)
+target_link_libraries(initialization_cpp PRIVATE flann_cpp lz4 NonMetricSpaceLib)
 
 # Set output directory so the module is found automatically by the Python scripts
 set_target_properties(initialization_cpp PROPERTIES 
