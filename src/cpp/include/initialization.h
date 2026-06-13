@@ -55,10 +55,17 @@ protected:
 public:
     virtual ~InitializationApproach() = default;
     
-    // Build offline index / initialize required components
-    virtual void build(const std::vector<std::vector<float>>& dataset) = 0;
+    virtual void build(const std::vector<std::vector<float>>& dataset) {
+        dataset_ = dataset;
+        build_index();
+    }
     
-    // Search online, returning a sorted list of (index, distance)
+    virtual void add_items(const std::vector<std::vector<float>>& items) {
+        dataset_.insert(dataset_.end(), items.begin(), items.end());
+    }
+    
+    virtual void build_index() = 0;
+    
     virtual std::vector<SearchResult> search(const std::vector<float>& query, size_t k) = 0;
 
     virtual size_t get_memory_usage() const = 0;
@@ -73,7 +80,7 @@ private:
     std::mt19937 gen_;
 public:
     RandomPointsInit(uint32_t seed = 42, const std::string& metric = "l2");
-    void build(const std::vector<std::vector<float>>& dataset) override;
+    void build_index() override;
     std::vector<SearchResult> search(const std::vector<float>& query, size_t k) override;
     size_t get_memory_usage() const override;
     size_t get_index_size() const override;
@@ -84,7 +91,7 @@ private:
     uint32_t medoid_index_;
 public:
     MedoidInit(const std::string& metric = "l2");
-    void build(const std::vector<std::vector<float>>& dataset) override;
+    void build_index() override;
     std::vector<SearchResult> search(const std::vector<float>& query, size_t k) override;
     size_t get_memory_usage() const override;
     size_t get_index_size() const override;
@@ -102,7 +109,7 @@ public:
     FlannKDTreeInit(int trees = 4, int checks = 32, const std::string& metric = "l2");
     ~FlannKDTreeInit() override;
 
-    void build(const std::vector<std::vector<float>>& dataset) override;
+    void build_index() override;
     std::vector<SearchResult> search(const std::vector<float>& query, size_t k) override;
     size_t get_memory_usage() const override;
     size_t get_index_size() const override;
@@ -120,7 +127,7 @@ public:
     FlannKMeansInit(int trees = 1, int branching = 32, int iterations = 11, int checks = 32, const std::string& metric = "l2");
     ~FlannKMeansInit() override;
 
-    void build(const std::vector<std::vector<float>>& dataset) override;
+    void build_index() override;
     std::vector<SearchResult> search(const std::vector<float>& query, size_t k) override;
     size_t get_memory_usage() const override;
     size_t get_index_size() const override;
@@ -139,7 +146,7 @@ public:
     VPTreeInit(int max_leaves_to_visit = 1000, float alpha_left = 1.0f, float alpha_right = 1.0f, const std::string& metric = "l2");
     ~VPTreeInit() override;
 
-    void build(const std::vector<std::vector<float>>& dataset) override;
+    void build_index() override;
     std::vector<SearchResult> search(const std::vector<float>& query, size_t k) override;
     size_t get_memory_usage() const override;
     size_t get_index_size() const override;
@@ -156,7 +163,7 @@ public:
     StackedNSWInit(int M = 16, int ef_construction = 200, int ef = 100, const std::string& metric = "l2");
     ~StackedNSWInit() override;
 
-    void build(const std::vector<std::vector<float>>& dataset) override;
+    void build_index() override;
     std::vector<SearchResult> search(const std::vector<float>& query, size_t k) override;
     size_t get_memory_usage() const override;
     size_t get_index_size() const override;
@@ -175,7 +182,7 @@ public:
     LSHInit(int num_hash_tables = 50, int num_hash_bits = 16, int num_probes = 100, const std::string& metric = "l2");
     ~LSHInit() override;
 
-    void build(const std::vector<std::vector<float>>& dataset) override;
+    void build_index() override;
     std::vector<SearchResult> search(const std::vector<float>& query, size_t k) override;
     size_t get_memory_usage() const override;
     size_t get_index_size() const override;

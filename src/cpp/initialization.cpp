@@ -7,6 +7,8 @@
 #include <fstream>
 #include <string>
 #include <unordered_set>
+#include <unordered_map>
+#include <memory>
 
 // Helper to get current Resident Set Size (RSS) in bytes
 size_t get_current_rss_bytes() {
@@ -37,8 +39,7 @@ RandomPointsInit::RandomPointsInit(uint32_t seed, const std::string& metric) : g
     if (metric == "cosine") metric_ = DistanceMetric::COSINE;
 }
 
-void RandomPointsInit::build(const std::vector<std::vector<float>>& dataset) {
-    dataset_ = dataset;
+void RandomPointsInit::build_index() {
 }
 
 size_t RandomPointsInit::get_memory_usage() const {
@@ -67,7 +68,7 @@ std::vector<SearchResult> RandomPointsInit::search(const std::vector<float>& que
     results.reserve(k);
     for (uint32_t idx : sampled_indices) {
         float dist = compute_distance(dataset_[idx], query);
-        results.push_back({idx, dist});
+        results.push_back(SearchResult{idx, dist});
     }
     
     // 3. Sort by distance
@@ -82,8 +83,7 @@ MedoidInit::MedoidInit(const std::string& metric) : medoid_index_(0) {
     if (metric == "cosine") metric_ = DistanceMetric::COSINE;
 }
 
-void MedoidInit::build(const std::vector<std::vector<float>>& dataset) {
-    dataset_ = dataset;
+void MedoidInit::build_index() {
     if (dataset_.empty()) {
         throw std::invalid_argument("Dataset cannot be empty.");
     }
@@ -128,7 +128,7 @@ size_t MedoidInit::get_index_size() const {
 
 std::vector<SearchResult> MedoidInit::search(const std::vector<float>& query, size_t k) {
     float dist = compute_distance(dataset_[medoid_index_], query);
-    return {{medoid_index_, dist}};
+    return {SearchResult{medoid_index_, dist}};
 }
 
 // ---------------------------------------------------------
@@ -151,9 +151,8 @@ FlannKDTreeInit::~FlannKDTreeInit() {
     delete state_;
 }
 
-void FlannKDTreeInit::build(const std::vector<std::vector<float>>& dataset) {
+void FlannKDTreeInit::build_index() {
     size_t rss_start = get_current_rss_bytes();
-    dataset_ = dataset;
     
     if (dataset_.empty()) {
         throw std::invalid_argument("Dataset cannot be empty.");
@@ -209,7 +208,7 @@ std::vector<SearchResult> FlannKDTreeInit::search(const std::vector<float>& quer
     for (size_t i = 0; i < k; ++i) {
         if (indices[i] >= 0) {
             float final_dist = (metric_ == DistanceMetric::COSINE) ? (dists[i] / 2.0f) : std::sqrt(dists[i]);
-            results.push_back({(uint32_t)indices[i], final_dist});
+            results.push_back(SearchResult{(uint32_t)indices[i], final_dist});
         }
     }
 
@@ -237,9 +236,8 @@ FlannKMeansInit::~FlannKMeansInit() {
     delete state_;
 }
 
-void FlannKMeansInit::build(const std::vector<std::vector<float>>& dataset) {
+void FlannKMeansInit::build_index() {
     size_t rss_start = get_current_rss_bytes();
-    dataset_ = dataset;
     
     if (dataset_.empty()) {
         throw std::invalid_argument("Dataset cannot be empty.");
@@ -304,7 +302,7 @@ std::vector<SearchResult> FlannKMeansInit::search(const std::vector<float>& quer
     std::vector<SearchResult> results;
     results.reserve(merged_candidates.size());
     for (auto& pair : merged_candidates) {
-        results.push_back({pair.first, pair.second});
+        results.push_back(SearchResult{pair.first, pair.second});
     }
 
     std::sort(results.begin(), results.end(), [](const SearchResult& a, const SearchResult& b) {
@@ -368,9 +366,8 @@ VPTreeInit::~VPTreeInit() {
     delete state_;
 }
 
-void VPTreeInit::build(const std::vector<std::vector<float>>& dataset) {
+void VPTreeInit::build_index() {
     size_t rss_start = get_current_rss_bytes();
-    dataset_ = dataset;
 
     if (dataset_.empty()) {
         throw std::invalid_argument("Dataset cannot be empty.");
@@ -419,7 +416,7 @@ std::vector<SearchResult> VPTreeInit::search(const std::vector<float>& query, si
     // The queue extracts in max-to-min order (largest distance first), so we read and reverse
     std::vector<SearchResult> temp_results;
     while (!res_queue->Empty()) {
-        temp_results.push_back({(uint32_t)res_queue->TopObject()->id(), res_queue->TopDistance()});
+        temp_results.push_back(SearchResult{(uint32_t)res_queue->TopObject()->id(), res_queue->TopDistance()});
         res_queue->Pop();
     }
     delete res_queue;
@@ -462,9 +459,8 @@ StackedNSWInit::~StackedNSWInit() {
     delete state_;
 }
 
-void StackedNSWInit::build(const std::vector<std::vector<float>>& dataset) {
+void StackedNSWInit::build_index() {
     size_t rss_start = get_current_rss_bytes();
-    dataset_ = dataset;
 
     if (dataset_.empty()) {
         throw std::invalid_argument("Dataset cannot be empty.");
@@ -515,7 +511,7 @@ std::vector<SearchResult> StackedNSWInit::search(const std::vector<float>& query
     std::vector<SearchResult> temp_results;
     similarity::KNNQueue<float>* res_queue = knn_query.Result()->Clone();
     while (!res_queue->Empty()) {
-        temp_results.push_back({(uint32_t)res_queue->TopObject()->id(), res_queue->TopDistance()});
+        temp_results.push_back(SearchResult{(uint32_t)res_queue->TopObject()->id(), res_queue->TopDistance()});
         res_queue->Pop();
     }
     delete res_queue;
@@ -552,9 +548,8 @@ LSHInit::~LSHInit() {
     delete state_;
 }
 
-void LSHInit::build(const std::vector<std::vector<float>>& dataset) {
+void LSHInit::build_index() {
     size_t rss_start = get_current_rss_bytes();
-    dataset_ = dataset;
     if (dataset_.empty()) {
         throw std::invalid_argument("Dataset cannot be empty.");
     }
@@ -605,7 +600,7 @@ std::vector<SearchResult> LSHInit::search(const std::vector<float>& query, size_
     results.reserve(candidates.size());
     for (int32_t idx : candidates) {
         float dist = compute_distance(dataset_[idx], query);
-        results.push_back({(uint32_t)idx, dist});
+        results.push_back(SearchResult{(uint32_t)idx, dist});
     }
 
     std::sort(results.begin(), results.end(), [](const SearchResult& a, const SearchResult& b) {

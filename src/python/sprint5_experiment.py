@@ -13,28 +13,41 @@ except ImportError:
     print("Warning: initialization_cpp not found.")
     initialization_cpp = None
 
-def compute_ground_truth_cosine(dataset, queries, k):
+def compute_ground_truth_cosine(corpus_ds, queries, k):
     ground_truth = []
-    # Assuming dataset and queries are normalized:
-    # We can just rank by dot_product (descending)
+    # Compute dot products in chunks if dataset is too large
+    # but since queries are small, we can matrix multiply
     for q in tqdm(queries, desc="Computing Ground Truth"):
-        sim = np.dot(dataset, q)
+        sim = []
+        chunk_size = 50000
+        total_size = corpus_ds.shape[0]
+        for start_idx in range(0, total_size, chunk_size):
+            end_idx = min(start_idx + chunk_size, total_size)
+            chunk = corpus_ds[start_idx:end_idx]
+            sim.append(np.dot(chunk, q))
+        sim = np.concatenate(sim)
         nearest_indices = np.argsort(-sim)[:k]
         ground_truth.append(nearest_indices.tolist())
     return ground_truth
 
-def run_dataset_experiment(dataset_name, corpus_path, queries_path, output_dir):
+def run_dataset_experiment(dataset_name, corpus_path, queries_path, output_dir, max_queries=1000):
     print(f"=== Running Experiment on {dataset_name} ===")
-    
-    with h5py.File(corpus_path, 'r') as f:
-        dataset = f['embeddings'][:]
-    with h5py.File(queries_path, 'r') as f:
-        queries = f['embeddings'][:]
+    corpus_f = h5py.File(corpus_path, 'r')
+    f = corpus_f
+    total_size = f['embeddings'].shape[0]
+    load_size = total_size
+    print(f"Dataset total size is {total_size}. Loading all points...")
+    with h5py.File(queries_path, 'r') as f_q:
+        q_total_size = f_q['embeddings'].shape[0]
+        q_load_size = min(q_total_size, max_queries)
+        print(f"Loading {q_load_size} queries...")
+        q_dataset = f_q['embeddings'][:q_load_size]
         
-    dataset_list = dataset.tolist()
-    
     k_search = 100
-    ground_truth = compute_ground_truth_cosine(dataset, queries, k=100)
+        
+    # Read queries once since they are small enough
+    queries = q_dataset
+    ground_truth = compute_ground_truth_cosine(corpus_f['embeddings'], queries, k=100)
     
     approaches = {
         "VP-tree": [
@@ -88,7 +101,14 @@ def run_dataset_experiment(dataset_name, corpus_path, queries_path, output_dir):
             print(f"Testing {name} on {dataset_name}...")
             
             tracker.start()
-            approach.build(dataset_list)
+            
+            chunk_size = 50000
+            for start_idx in tqdm(range(0, load_size, chunk_size), desc=f"Loading chunks for {name}"):
+                end_idx = min(start_idx + chunk_size, load_size)
+                chunk = corpus_f['embeddings'][start_idx:end_idx].astype(np.float32)
+                approach.add_items(chunk.tolist())
+                
+            approach.build_index()
             build_time = tracker.stop()
             mem_footprint = approach.get_memory_usage() / (1024 * 1024)
             index_size = approach.get_index_size() / (1024 * 1024)
@@ -113,8 +133,8 @@ def run_dataset_experiment(dataset_name, corpus_path, queries_path, output_dir):
                 rec = calculate_recall_at_k(search_results_indices[i], ground_truth[i], k_values=[1, 10, 25, 100])
                 for k in avg_recall:
                     avg_recall[k] += rec.get(k, 0.0)
-                avg_mean_dist += calculate_mean_distance(search_results_indices[i], queries[i], dataset)
-                avg_1nn_diff += calculate_1nn_distance_diff(search_results_indices[i][0], ground_truth[i][0], queries[i], dataset)
+                avg_mean_dist += calculate_mean_distance(search_results_indices[i], queries[i], corpus_f['embeddings'])
+                avg_1nn_diff += calculate_1nn_distance_diff(search_results_indices[i][0], ground_truth[i][0], queries[i], corpus_f['embeddings'])
                 
             for k in avg_recall:
                 avg_recall[k] /= len(queries)
@@ -141,6 +161,8 @@ def run_dataset_experiment(dataset_name, corpus_path, queries_path, output_dir):
             
         df = pd.DataFrame(results_list)
         df.to_csv(f"{output_dir}/results_{dataset_name}_{approach_family.replace(' ', '_')}.csv", index=False)
+        
+    corpus_f.close()
 
 if __name__ == "__main__":
     msmarco_corpus = "/home/marco/Text-Dense-Retrieval-Evaluation/embeddings/msmarco/Octen-Embedding-0.6B_corpus.h5"
