@@ -399,13 +399,14 @@ void VPTreeInit::build_index() {
     size_t num_points = dataset_.size();
     size_t dims = dataset_[0].size();
 
-    state_->space = similarity::SpaceFactoryRegistry<float>::Instance().CreateSpace("l2", similarity::AnyParams());
+    std::string space_name = (metric_ == DistanceMetric::COSINE) ? "cosinesimil" : "l2";
+    state_->space = similarity::SpaceFactoryRegistry<float>::Instance().CreateSpace(space_name, similarity::AnyParams());
 
     for (size_t i = 0; i < num_points; ++i) {
         state_->data.push_back(new similarity::Object(i, -1, dims * sizeof(float), dataset_[i].data()));
     }
 
-    state_->index = similarity::MethodFactoryRegistry<float>::Instance().CreateMethod(false, "vptree", "l2", *state_->space, state_->data);
+    state_->index = similarity::MethodFactoryRegistry<float>::Instance().CreateMethod(false, "vptree", space_name, *state_->space, state_->data);
 
     size_t rss_before_index = get_current_rss_bytes();
     state_->index->CreateIndex(similarity::AnyParams());

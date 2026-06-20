@@ -20,7 +20,7 @@ def compute_ground_truth(dataset, queries, k):
     return ground_truth
 
 def run_experiment():
-    print("=== Sprint 0 Experiment Runner ===")
+    print("=== Fast Experiment ===")
     
     # 1. Dataset Generation
     generator = DatasetGenerator(seed=42)
@@ -45,15 +45,13 @@ def run_experiment():
     k_search = 100
     # Define the approaches to test
     approaches = [
-        ("Random Points", initialization_cpp.RandomPointsInit(42)),
-        ("Medoid", initialization_cpp.MedoidInit()),
-        ("t KD-Trees (t=1)", initialization_cpp.FlannKDTreeInit(1, k_search)),
-        ("t KD-Trees (t=5)", initialization_cpp.FlannKDTreeInit(5, 5*k_search)),
-        ("t K-Means trees (t=1)", initialization_cpp.FlannKMeansInit(1, 32, 11, k_search)),
-        ("t K-Means trees (t=5)", initialization_cpp.FlannKMeansInit(5, 32, 11, k_search)),
-        ("VP-tree", initialization_cpp.VPTreeInit(8, 1.0, 1.0)),
-        ("Stacked NSW graphs", initialization_cpp.StackedNSWInit(16, 400, k_search)),
-        ("LSH", initialization_cpp.LSHInit(4, 20, 4))
+        ("Random", initialization_cpp.RandomPointsInit(42, "cosine")),
+        ("Medoid", initialization_cpp.MedoidInit("cosine")),
+        ("VP-tree", initialization_cpp.VPTreeInit(50, 2.0, 2.0, "cosine")),
+        ("Stacked NSW", initialization_cpp.StackedNSWInit(16, 200, 10, "cosine")),
+        ("LSH", initialization_cpp.LSHInit(10, 16, 10, "cosine")),
+        ("KD-trees", initialization_cpp.FlannKDTreeInit(4, 100, "cosine")),
+        ("K-Means trees", initialization_cpp.FlannKMeansInit(1, 16, 2, 100, "cosine"))
     ]
     
     offline_results = []
@@ -73,11 +71,13 @@ def run_experiment():
         approach.reset_distance_computations()
         tracker.start()
         search_results_indices = []
+        search_results_distances = []
         for i in range(num_queries):
             query_vec = queries[i].tolist()
             # C++ returns a list of SearchResult objects
             results = approach.search(query_vec, k_search)
             search_results_indices.append([r.index for r in results])
+            search_results_distances.append([r.distance for r in results])
         search_time = tracker.stop()
         
         # Get average distance computations from C++
@@ -93,8 +93,9 @@ def run_experiment():
             rec = calculate_recall_at_k(search_results_indices[i], ground_truth[i], k_values=[1, 10, 25])
             for k in avg_recall:
                 avg_recall[k] += rec.get(k, 0.0)
-            avg_mean_dist += calculate_mean_distance(search_results_indices[i], queries[i], dataset)
-            avg_1nn_diff += calculate_1nn_distance_diff(search_results_indices[i][0], ground_truth[i][0], queries[i], dataset)
+            avg_mean_dist += calculate_mean_distance(search_results_distances[i])
+            found_1nn_dist = search_results_distances[i][0] if len(search_results_distances[i]) > 0 else 0.0
+            avg_1nn_diff += calculate_1nn_distance_diff(found_1nn_dist, ground_truth[i][0], queries[i], dataset)
             
         # Averaging
         for k in avg_recall:

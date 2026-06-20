@@ -1,4 +1,5 @@
 /antigravity
 /build
+/results
 *.pyc
 *.so

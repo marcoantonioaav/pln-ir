@@ -94,10 +94,10 @@ def run_dataset_experiment(dataset_name, corpus_path, queries_path, output_dir, 
             "constructor": lambda: initialization_cpp.VPTreeInit(1000, 1.0, 1.0, "cosine"),
             "query_params": [
                 ("VP-tree (max_leaves=100)", {"max_leaves_to_visit": "100"}),
+                ("VP-tree (max_leaves=250)", {"max_leaves_to_visit": "250"}),
                 ("VP-tree (max_leaves=500)", {"max_leaves_to_visit": "500"}),
                 ("VP-tree (max_leaves=1000)", {"max_leaves_to_visit": "1000"}),
-                ("VP-tree (max_leaves=2000)", {"max_leaves_to_visit": "2000"}),
-                ("VP-tree (max_leaves=5000)", {"max_leaves_to_visit": "5000"})
+                ("VP-tree (max_leaves=2000)", {"max_leaves_to_visit": "2000"})
             ]
         },
         "Stacked NSW": {
@@ -114,6 +114,7 @@ def run_dataset_experiment(dataset_name, corpus_path, queries_path, output_dir, 
             "constructor": lambda: initialization_cpp.LSHInit(10, 16, 10, "cosine"),
             "query_params": [
                 ("LSH (probes=10)", {"num_probes": "10"}),
+                ("LSH (probes=20)", {"num_probes": "20"}),
                 ("LSH (probes=50)", {"num_probes": "50"}),
                 ("LSH (probes=100)", {"num_probes": "100"}),
                 ("LSH (probes=200)", {"num_probes": "200"})
@@ -136,7 +137,7 @@ def run_dataset_experiment(dataset_name, corpus_path, queries_path, output_dir, 
                 ("t K-Means (checks=500)", {"checks": "500"}),
                 ("t K-Means (checks=1000)", {"checks": "1000"}),
                 ("t K-Means (checks=2000)", {"checks": "2000"}),
-                ("t K-Means (checks=5000)", {"checks": "5000"}),
+                ("t K-Means (checks=5000)", {"checks": "5000"})
             ]
         },
         "Random": {
@@ -144,8 +145,7 @@ def run_dataset_experiment(dataset_name, corpus_path, queries_path, output_dir, 
             "query_params": [
                 ("Random Points (sample=100)", {"sample_size": "100"}),
                 ("Random Points (sample=1000)", {"sample_size": "1000"}),
-                ("Random Points (sample=10000)", {"sample_size": "10000"}),
-                ("Random Points (sample=100000)", {"sample_size": "100000"})
+                ("Random Points (sample=10000)", {"sample_size": "10000"})
             ]
         },
         "Medoid": {
